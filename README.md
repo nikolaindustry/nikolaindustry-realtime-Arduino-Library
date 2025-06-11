@@ -16,8 +16,6 @@ This library provides easy integration with the NIKOLAINDUSTRY real-time server 
 
 ## Usage Example
 ```cpp
-#include <WiFi.h>
-#include <ArduinoJson.h>
 #include <nikolaindustry-realtime.h>
 
 // Replace with your actual Wi-Fi credentials
