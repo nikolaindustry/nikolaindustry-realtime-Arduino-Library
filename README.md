@@ -22,7 +22,7 @@ This library provides easy integration with the NIKOLAINDUSTRY real-time server 
 const char* ssid = "SENSORFLOW";
 const char* password = "12345678";
 
-// Unique device ID used to connect to the WebSocket server
+// Unique device ID used to connect to the  real-time server
 const char* deviceId = "esp32-demo-device-001";
 
 nikolaindustryrealtime realtime;
@@ -30,7 +30,7 @@ nikolaindustryrealtime realtime;
 void setup() {
   Serial.begin(115200);
 
-  // Connect to Wi-Fi and WebSocket server
+  // Connect to Wi-Fi and  real-time server 
   realtime.begin(ssid, password, deviceId);
 
   // Set a callback for incoming messages
