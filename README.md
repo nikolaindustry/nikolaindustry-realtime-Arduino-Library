@@ -21,64 +21,57 @@ The `nikolaindustry-realtime` library enables ESP32 devices to communicate secur
 ### Example Usage
 
 ```cpp
-
-#include <nikolaindustry-realtime.h>  // Make sure this library is included in your project
+#include <WiFi.h>
+#include "nikolaindustry-realtime.h"
 
 nikolaindustryrealtime realtime;
 
-#define CONTROL_PIN 2  // GPIO2
-
 void setup() {
   Serial.begin(115200);
-  pinMode(CONTROL_PIN, OUTPUT);
-  digitalWrite(CONTROL_PIN, LOW);  // default OFF
+  pinMode(2, OUTPUT);
 
-  
-  realtime.begin("YourSSID", "YourPassword", "device-123456");
+  WiFi.begin("SENSORFLOW", "12345678");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n✅ WiFi connected");
 
-  // Handle incoming messages
+  realtime.begin("device-123456");
+
   realtime.setOnMessageCallback([](JsonObject &msg) {
-    Serial.println("📥 Received JSON:");
-    serializeJsonPretty(msg, Serial);
-
-    // Example JSON format:
-    // {
-    //   "targetId": "device-123456",
-    //   "payload": {
-    //     "command": "gpio",
-    //     "pin": 2,
-    //     "state": "ON"
-    //   }
-    // }
-
     if (!msg.containsKey("payload")) return;
 
     JsonObject payload = msg["payload"];
-    if (payload["command"] == "gpio") {
-      int pin = payload["pin"];
-      String state = payload["state"];
+    String senderId = msg["from"] | ""; // Optional: who sent the command
 
-      if (pin == CONTROL_PIN) {
-        if (state == "ON") {
-          digitalWrite(CONTROL_PIN, HIGH);
-          Serial.println("🟢 GPIO2 ON");
-        } else if (state == "OFF") {
-          digitalWrite(CONTROL_PIN, LOW);
-          Serial.println("🔴 GPIO2 OFF");
+    if (payload["command"] == "gpio") {
+      int pin = payload["pin"] | -1;
+      String state = payload["state"] | "";
+
+      if (pin == 2 && (state == "ON" || state == "OFF")) {
+        digitalWrite(2, state == "ON" ? HIGH : LOW);
+
+        // ✅ Send response back to sender
+        if (senderId != "") {
+          realtime.sendTo(senderId, [&](JsonObject &respPayload) {
+            respPayload["response"] = "GPIO_OK";
+            respPayload["pin"] = pin;
+            respPayload["state"] = state;
+            respPayload["status"] = "done";
+          });
         }
       }
     }
   });
 
-  // Optional: notify server that device is ready
-  realtime.sendTo("server", [](JsonObject &payload) {
-    payload["status"] = "ready";
-    payload["gpio2"] = "OFF";
+  realtime.setOnConnectionStatusChange([](bool connected) {
+    Serial.println(connected ? "🟢 WS Connected" : "🔴 WS Disconnected");
   });
 }
 
 void loop() {
-  realtime.loop(); // essential 
+  realtime.loop();
 }
 
 ````
