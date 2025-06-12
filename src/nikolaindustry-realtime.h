@@ -21,19 +21,26 @@ public:
   void stopAPMode();
   void setAPTimeout(unsigned long timeoutMillis);
   bool isAPModeActive() const;
-  bool isNikolaindustryRealtimeConnected() const;
-
-
+  bool isNikolaindustryRealtimeConnected();
+  void setOnConnectionStatusChange(std::function<void(bool)> callback);
 
 private:
   WebSocketsClient webSocket;
+  DNSServer dnsServer;
+  
   bool apModeActive = false;
   unsigned long apStartTime = 0;
   unsigned long apTimeout = 0;
-
-  DNSServer dnsServer;
-  std::function<void(JsonObject &)> onMessageCallback;
+  unsigned long lastReconnectAttempt = 0;
+  unsigned long reconnectDelay = 5000;           // Start with 5 seconds
+  const unsigned long maxReconnectDelay = 60000; // Cap at 60 seconds
+  int wifiRetryCount = 0;
+  const int maxWifiRetriesBeforeAP = 5;
   String deviceId;
+
+  std::function<void(JsonObject &)> onMessageCallback;
+  std::function<void(bool)> onConnectionStatusChange;
+
   void connect();
 };
 
