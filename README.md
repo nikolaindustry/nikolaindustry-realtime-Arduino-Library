@@ -83,6 +83,31 @@ void loop() {
 
 ````
 
+### ✅ Example WebSocket JSON to Control GPIO2:
+### To turn it ON:
+````
+{
+  "targetId": "device-123456",
+  "payload": {
+    "command": "gpio",
+    "pin": 2,
+    "state": "ON"
+  }
+}
+````
+### To turn it OFF:
+
+````
+{
+  "targetId": "device-123456",
+  "payload": {
+    "command": "gpio",
+    "pin": 2,
+    "state": "OFF"
+  }
+}
+````
+````
 ---
 
 ## 🔧 Class: `nikolaindustryrealtime`
