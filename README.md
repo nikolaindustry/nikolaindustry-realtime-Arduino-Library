@@ -107,7 +107,7 @@ void loop() {
   }
 }
 ````
-````
+
 ---
 
 ## 🔧 Class: `nikolaindustryrealtime`
