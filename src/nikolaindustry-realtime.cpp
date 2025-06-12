@@ -46,7 +46,7 @@ void nikolaindustryrealtime::begin(const char *ssid, const char *password, const
     webSocket.setReconnectInterval(5000);
   } else {
     Serial.println("\n❌ Failed to connect WiFi — switching to AP Mode");
-    startAPMode();
+    //startAPMode();
   }
 }
 
@@ -90,7 +90,7 @@ void nikolaindustryrealtime::loop() {
 
         if (wifiRetryCount >= maxWifiRetriesBeforeAP) {
           Serial.println("🚨 Max WiFi retries reached. Switching to AP Mode.");
-          startAPMode();
+          //startAPMode();
         }
       }
     }
@@ -194,4 +194,7 @@ bool nikolaindustryrealtime::isAPModeActive() const {
 
 bool nikolaindustryrealtime::isNikolaindustryRealtimeConnected()  {
   return webSocket.isConnected();
+}
+WebServer* nikolaindustryrealtime::getAPServer() {
+  return &apServer;
 }
