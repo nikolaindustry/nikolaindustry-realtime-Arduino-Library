@@ -1,3 +1,200 @@
+Here’s a `README.md` file that explains each function of your `nikolaindustry-realtime` ESP32 library, written in a clean and structured way:
+
+---
+
+````markdown
+# NikolaIndustry Realtime Library for ESP32
+
+The `nikolaindustry-realtime` library enables ESP32 devices to communicate securely with a WebSocket server, auto-reconnect on disconnection, switch to AP mode on repeated Wi-Fi failures, and handle real-time JSON messaging.
+
+## 📦 Features
+
+- Auto-connect to WebSocket over SSL
+- JSON-based messaging (using `ArduinoJson`)
+- Callback for incoming messages
+- Callback for connection status changes
+- Retry logic with exponential backoff
+- Automatic switch to AP mode after multiple Wi-Fi failures
+- AP mode timeout and recovery
+- Send JSON messages to specific target devices
+
+---
+
+## 🚀 Getting Started
+
+### Example Usage
+
+```cpp
+#include <nikolaindustry-realtime.h>
+
+const char* WIFI_SSID = "your_wifi_ssid";
+const char* WIFI_PASSWORD = "your_wifi_password";
+const char* DEVICE_ID = "esp32-unique-device-id";
+
+nikolaindustryrealtime realtime;
+
+void setup() {
+  Serial.begin(115200);
+  realtime.begin(WIFI_SSID, WIFI_PASSWORD, DEVICE_ID);
+
+  realtime.setOnMessageCallback([](JsonObject &msg) {
+    Serial.println("Received:");
+    serializeJsonPretty(msg, Serial);
+    Serial.println();
+  });
+
+  realtime.setOnConnectionStatusChange([](bool connected) {
+    Serial.printf("WebSocket: %s\n", connected ? "Connected" : "Disconnected");
+  });
+
+  realtime.sendTo("target-device-id", [](JsonObject &payload) {
+    payload["status"] = "ping";
+  });
+}
+
+void loop() {
+  realtime.loop();
+}
+````
+
+---
+
+## 🔧 Class: `nikolaindustryrealtime`
+
+### `begin(const char *ssid, const char *password, const char *deviceId)`
+
+Initializes Wi-Fi, connects to WebSocket, and sets up auto-reconnect.
+
+* `ssid`: Wi-Fi network name.
+* `password`: Wi-Fi password.
+* `deviceId`: Unique ID passed to WebSocket as query parameter.
+
+---
+
+### `loop()`
+
+Must be called in the `loop()` function to process WebSocket events and manage AP/Wi-Fi recovery.
+
+---
+
+### `sendJson(const JsonObject &json)`
+
+Sends a raw JSON object over WebSocket. Useful for full control of payload structure.
+
+---
+
+### `sendTo(const String &targetId, std::function<void(JsonObject &)> payloadBuilder)`
+
+Builds and sends a JSON payload with a `targetId`. Simplifies common messaging.
+
+* `targetId`: Destination device.
+* `payloadBuilder`: Lambda that fills the `payload` object.
+
+Example:
+
+```cpp
+realtime.sendTo("target-device", [](JsonObject &payload) {
+  payload["temp"] = 25;
+});
+```
+
+---
+
+### `setOnMessageCallback(std::function<void(JsonObject &)> callback)`
+
+Registers a callback that triggers when a valid JSON message is received.
+
+---
+
+### `setOnConnectionStatusChange(std::function<void(bool)> callback)`
+
+Registers a callback that notifies when WebSocket connects or disconnects.
+
+* `true` = connected
+* `false` = disconnected
+
+---
+
+### `startAPMode(const char *ssid = nullptr, const char *password = nullptr)`
+
+Switches the ESP32 to AP mode with optional SSID and password.
+If none are provided:
+
+* Default SSID: `NIKOLAINDUSTRY_Setup`
+* Default Password: `xVv9O9B4tV`
+
+---
+
+### `stopAPMode()`
+
+Stops AP mode and reverts to station mode (STA).
+
+---
+
+### `setAPTimeout(unsigned long timeoutMillis)`
+
+Sets AP mode timeout in milliseconds. After the timeout, AP mode stops automatically.
+
+---
+
+### `isAPModeActive() const`
+
+Returns `true` if AP mode is active.
+
+---
+
+### `isNikolaindustryRealtimeConnected()`
+
+Returns `true` if the WebSocket is currently connected.
+
+---
+
+## 🔁 Reconnection Logic
+
+* Retries Wi-Fi with exponential backoff (starting at 5s, capped at 60s).
+* After `maxWifiRetriesBeforeAP` attempts (default: 5), it switches to AP mode.
+* If `setAPTimeout()` is used, it will exit AP mode after the timeout and retry Wi-Fi.
+
+---
+
+## 🌐 WebSocket URL
+
+WebSocket connects to:
+
+```
+wss://nikolaindustry-realtime.onrender.com/?id=<deviceId>
+```
+
+---
+
+## 🧰 Dependencies
+
+* [ArduinoJson](https://arduinojson.org/)
+* [WebSockets](https://github.com/Links2004/arduinoWebSockets)
+* [WiFi](https://www.arduino.cc/en/Reference/WiFi)
+* [DNSServer](https://github.com/espressif/arduino-esp32)
+
+---
+
+## 📄 License
+
+MIT License – Use freely for commercial and personal projects.
+
+---
+
+## 📞 Need Help?
+
+Feel free to open an issue or contact the Nikola Industry team for feature requests or troubleshooting.
+
+```
+
+---
+
+Let me know if you want me to generate a PDF or auto-upload this into your repo structure!
+```
+
+
+
 # nikolaindustry-realtime Arduino Library
 
 This library provides easy integration with the NIKOLAINDUSTRY real-time server for ESP32 boards.
