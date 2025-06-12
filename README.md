@@ -21,86 +21,65 @@ The `nikolaindustry-realtime` library enables ESP32 devices to communicate secur
 ### Example Usage
 
 ```cpp
-#include <nikolaindustry-realtime.h>
 
-const char *WIFI_SSID = "SENSORFLOW";
-const char *WIFI_PASSWORD = "12345678";
-const char *DEVICE_ID = "esp32-device-123";  // Unique ID for this ESP32
+#include <nikolaindustry-realtime.h>  // Make sure this library is included in your project
 
 nikolaindustryrealtime realtime;
 
-// AP timeout duration (2 minutes)
-const unsigned long AP_TIMEOUT_DURATION = 120000;
-
-unsigned long lastAPStart = 0;
-bool retriedWiFiAfterAP = false;
+#define CONTROL_PIN 2  // GPIO2
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  pinMode(CONTROL_PIN, OUTPUT);
+  digitalWrite(CONTROL_PIN, LOW);  // default OFF
 
-  // Start realtime communication
-  realtime.begin(WIFI_SSID, WIFI_PASSWORD, DEVICE_ID);
+  
+  realtime.begin("YourSSID", "YourPassword", "device-123456");
 
-  // Set AP timeout inside the library (internal auto-stop)
-  realtime.setAPTimeout(AP_TIMEOUT_DURATION);
-
-  // nikolaindustry-realtime message received callback
+  // Handle incoming messages
   realtime.setOnMessageCallback([](JsonObject &msg) {
-    Serial.println("📥 Received message:");
+    Serial.println("📥 Received JSON:");
     serializeJsonPretty(msg, Serial);
-    Serial.println();
 
-     // Test send (can be triggered from a button instead)
-  realtime.sendTo("target-device-456", [](JsonObject &payload) {
-    payload["message"] = "Hello from ESP32!";
-    payload["status"] = "test";
+    // Example JSON format:
+    // {
+    //   "targetId": "device-123456",
+    //   "payload": {
+    //     "command": "gpio",
+    //     "pin": 2,
+    //     "state": "ON"
+    //   }
+    // }
+
+    if (!msg.containsKey("payload")) return;
+
+    JsonObject payload = msg["payload"];
+    if (payload["command"] == "gpio") {
+      int pin = payload["pin"];
+      String state = payload["state"];
+
+      if (pin == CONTROL_PIN) {
+        if (state == "ON") {
+          digitalWrite(CONTROL_PIN, HIGH);
+          Serial.println("🟢 GPIO2 ON");
+        } else if (state == "OFF") {
+          digitalWrite(CONTROL_PIN, LOW);
+          Serial.println("🔴 GPIO2 OFF");
+        }
+      }
+    }
   });
 
+  // Optional: notify server that device is ready
+  realtime.sendTo("server", [](JsonObject &payload) {
+    payload["status"] = "ready";
+    payload["gpio2"] = "OFF";
   });
-
-  // Connection status monitor
-  realtime.setOnConnectionStatusChange([](bool connected) {
-    Serial.printf("🔌Realtime Socket status: %s\n", connected ? "CONNECTED" : "DISCONNECTED");
-  });
-
- 
 }
 
 void loop() {
-  realtime.loop();
-
-  // Reconnect Wi-Fi after AP timeout
-  if (realtime.isAPModeActive()) {
-    if (lastAPStart == 0) {
-      lastAPStart = millis();
-    }
-
-    if (!retriedWiFiAfterAP && millis() - lastAPStart >= AP_TIMEOUT_DURATION) {
-      Serial.println("🕒 AP Mode timed out. Retrying Wi-Fi connection...");
-      realtime.stopAPMode();
-      delay(1000); // Short delay before reconnect
-      realtime.begin(WIFI_SSID, WIFI_PASSWORD, DEVICE_ID); // Retry Wi-Fi
-      retriedWiFiAfterAP = true;
-      lastAPStart = 0;
-    }
-  } else {
-    lastAPStart = 0;
-    retriedWiFiAfterAP = false;
-  }
-
-  // Optional: Check connection every 5 seconds
-  static unsigned long lastCheck = 0;
-  if (millis() - lastCheck > 5000) {
-    lastCheck = millis();
-    if (realtime.isNikolaindustryRealtimeConnected()) {
-      Serial.println("✅ Realtime is connected.");
-    } else {
-      Serial.println("❌ Realtime not connected.");
-    }
-  }
+  realtime.loop(); // essential 
 }
-
 
 ````
 
