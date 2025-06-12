@@ -18,62 +18,83 @@ This library provides easy integration with the NIKOLAINDUSTRY real-time server 
 ```cpp
 #include <nikolaindustry-realtime.h>
 
-// Replace with your actual Wi-Fi credentials
-const char* ssid = "SENSORFLOW";
-const char* password = "12345678";
-
-// Unique device ID used to connect to the  real-time server
-const char* deviceId = "esp32-demo-device-001";
+const char *WIFI_SSID = "SENSORFLOW";
+const char *WIFI_PASSWORD = "12345678";
+const char *DEVICE_ID = "esp32-device-123";  // Unique ID for this ESP32
 
 nikolaindustryrealtime realtime;
 
+// AP timeout duration (2 minutes)
+const unsigned long AP_TIMEOUT_DURATION = 120000;
+
+unsigned long lastAPStart = 0;
+bool retriedWiFiAfterAP = false;
+
 void setup() {
   Serial.begin(115200);
+  delay(1000);
 
-  // Connect to Wi-Fi and  real-time server 
-  realtime.begin(ssid, password, deviceId);
+  // Start realtime communication
+  realtime.begin(WIFI_SSID, WIFI_PASSWORD, DEVICE_ID);
 
-  // Set a callback for incoming messages
-  realtime.setOnMessageCallback([](JsonObject& msg) {
-    Serial.println("📩 Received message:");
+  // Set AP timeout inside the library (internal auto-stop)
+  realtime.setAPTimeout(AP_TIMEOUT_DURATION);
+
+  // WebSocket message received callback
+  realtime.setOnMessageCallback([](JsonObject &msg) {
+    Serial.println("📥 Received message:");
     serializeJsonPretty(msg, Serial);
     Serial.println();
 
-    // Access the payload
-    if (msg.containsKey("payload")) {
-      JsonObject payload = msg["payload"];
-
-      // Example: control onboard LED
-      if (payload.containsKey("led")) {
-        int ledState = payload["led"];
-        digitalWrite(2, ledState ? HIGH : LOW);
-        Serial.printf("💡 LED turned %s\n", ledState ? "ON" : "OFF");
-      }
-    }
+     // Test send (can be triggered from a button instead)
+  realtime.sendTo("target-device-456", [](JsonObject &payload) {
+    payload["message"] = "Hello from ESP32!";
+    payload["status"] = "test";
   });
 
-  // Setup onboard LED
-  pinMode(2, OUTPUT);
-  digitalWrite(2, LOW);
+  });
+
+  // Connection status monitor
+  realtime.setOnConnectionStatusChange([](bool connected) {
+    Serial.printf("🔌Realtime Socket status: %s\n", connected ? "CONNECTED" : "DISCONNECTED");
+  });
+
+ 
 }
 
 void loop() {
   realtime.loop();
 
-  // Send heartbeat/status every 10 seconds
-  static unsigned long lastSent = 0;
-  if (millis() - lastSent > 10000) {
-    lastSent = millis();
+  // Reconnect Wi-Fi after AP timeout
+  if (realtime.isAPModeActive()) {
+    if (lastAPStart == 0) {
+      lastAPStart = millis();
+    }
 
-    // Send a JSON message to the server
-    realtime.sendTo("server", [](JsonObject& payload) {
-      payload["status"] = "alive";
-      payload["uptime"] = millis() / 1000;
-      payload["message"] = "Hello from ESP32";
-    });
+    if (!retriedWiFiAfterAP && millis() - lastAPStart >= AP_TIMEOUT_DURATION) {
+      Serial.println("🕒 AP Mode timed out. Retrying Wi-Fi connection...");
+      realtime.stopAPMode();
+      delay(1000); // Short delay before reconnect
+      realtime.begin(WIFI_SSID, WIFI_PASSWORD, DEVICE_ID); // Retry Wi-Fi
+      retriedWiFiAfterAP = true;
+      lastAPStart = 0;
+    }
+  } else {
+    lastAPStart = 0;
+    retriedWiFiAfterAP = false;
+  }
 
-    Serial.println("🚀 Sent heartbeat message");
+  // Optional: Check connection every 5 seconds
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck > 5000) {
+    lastCheck = millis();
+    if (realtime.isNikolaindustryRealtimeConnected()) {
+      Serial.println("✅ Realtime is connected.");
+    } else {
+      Serial.println("❌ Realtime not connected.");
+    }
   }
 }
+
 
 ```
