@@ -1,11 +1,9 @@
 #include "nikolaindustry-realtime.h"
-
-DNSServer dnsServer;
+#include <esp_task_wdt.h>
 
 nikolaindustryrealtime::nikolaindustryrealtime() {}
 
-void nikolaindustryrealtime::begin(const char *ssid, const char *password, const char *_deviceId)
-{
+void nikolaindustryrealtime::begin(const char *ssid, const char *password, const char *_deviceId) {
   deviceId = _deviceId;
 
   const char *customHostname = "NIKOLAINDUSTRY_Device";
@@ -16,102 +14,112 @@ void nikolaindustryrealtime::begin(const char *ssid, const char *password, const
   WiFi.begin(ssid, password);
   Serial.print("🔌 Connecting to WiFi");
   unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 15000; // 15 seconds
+  const unsigned long timeout = 15000;
 
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout)
-  {
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout) {
     delay(500);
     Serial.print(".");
+    esp_task_wdt_reset();  // ✅ prevent watchdog timeout
   }
 
-  if (WiFi.status() == WL_CONNECTED)
-  {
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n✅ WiFi connected");
     webSocket.beginSSL("nikolaindustry-realtime.onrender.com", 443, ("/?id=" + deviceId).c_str());
 
-    webSocket.onEvent([this](WStype_t type, uint8_t *payload, size_t length)
-                      {
-      if (type == WStype_TEXT) {
+    webSocket.onEvent([this](WStype_t type, uint8_t *payload, size_t length) {
+      if (type == WStype_CONNECTED) {
+        Serial.println("🟢 Socket connected");
+        if (onConnectionStatusChange) onConnectionStatusChange(true);  // ✅
+      } else if (type == WStype_DISCONNECTED) {
+        Serial.println("🔴 Socket disconnected");
+        if (onConnectionStatusChange) onConnectionStatusChange(false);  // ✅
+      } else if (type == WStype_TEXT) {
         DynamicJsonDocument doc(2048);
         DeserializationError err = deserializeJson(doc, payload, length);
         if (!err && onMessageCallback) {
           JsonObject obj = doc.as<JsonObject>();
           onMessageCallback(obj);
         }
-      } });
+      }
+    });
 
     webSocket.setReconnectInterval(5000);
-  }
-  else
-  {
+  } else {
     Serial.println("\n❌ Failed to connect WiFi — switching to AP Mode");
     startAPMode();
   }
 }
 
-void nikolaindustryrealtime::loop()
-{
-  if (apModeActive)
-  {
+void nikolaindustryrealtime::loop() {
+  if (apModeActive) {
     dnsServer.processNextRequest();
-    if (apTimeout > 0 && millis() - apStartTime >= apTimeout)
-    {
+    if (apTimeout > 0 && millis() - apStartTime >= apTimeout) {
       Serial.println("⏳ AP Mode timeout reached. Stopping AP...");
       stopAPMode();
     }
-    return; // Don't proceed to Wi-Fi or WebSocket logic
+    return;
   }
 
-  if (!apModeActive && WiFi.status() != WL_CONNECTED)
-  {
-    Serial.println("⚠️ WiFi disconnected. Attempting to reconnect...");
-    WiFi.disconnect();
-    WiFi.reconnect();
+  if (!apModeActive && WiFi.status() != WL_CONNECTED) {
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt >= reconnectDelay) {
+      lastReconnectAttempt = now;
+      Serial.printf("🔁 Attempting WiFi reconnect #%d...\n", wifiRetryCount + 1);
 
-    unsigned long startAttemptTime = millis();
-    const unsigned long timeout = 10000; // 10 seconds timeout
+      WiFi.disconnect();
+      WiFi.reconnect();
 
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout)
-    {
-      delay(500);
-      Serial.print(".");
-    }
+      unsigned long startAttemptTime = millis();
+      const unsigned long timeout = 10000;
 
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      Serial.println("\n✅ WiFi reconnected");
-      Serial.println("IP Address: " + WiFi.localIP().toString());
-      webSocket.loop();
-      connect();
+      while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < timeout) {
+        delay(500);
+        Serial.print(".");
+        esp_task_wdt_reset();  // ✅ watchdog during reconnect
+      }
+
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\n✅ WiFi reconnected");
+        reconnectDelay = 5000;
+        wifiRetryCount = 0;
+        connect();
+      } else {
+        Serial.println("\n❌ WiFi reconnect failed");
+        wifiRetryCount++;
+        reconnectDelay = min(reconnectDelay * 2, maxReconnectDelay);
+
+        if (wifiRetryCount >= maxWifiRetriesBeforeAP) {
+          Serial.println("🚨 Max WiFi retries reached. Switching to AP Mode.");
+          startAPMode();
+        }
+      }
     }
-    else
-    {
-      Serial.println("\n❌ Failed to reconnect WiFi");
-      startAPMode(); // ✅ Only call if not already in AP mode
-    }
-    return; // Skip WebSocket loop this cycle
+    return;
   }
 
-  if (!apModeActive && WiFi.status() == WL_CONNECTED)
-  {
+  if (!apModeActive && WiFi.status() == WL_CONNECTED) {
     webSocket.loop();
   }
 }
 
-void nikolaindustryrealtime::sendJson(const JsonObject &json)
-{
+void nikolaindustryrealtime::sendJson(const JsonObject &json) {
   String output;
-  serializeJson(json, output);
-  webSocket.sendTXT(output);
+  if (serializeJson(json, output)) {
+    webSocket.sendTXT(output);
+  } else {
+    Serial.println("❌ Failed to serialize JSON before sending!");
+  }
 }
 
-void nikolaindustryrealtime::setOnMessageCallback(std::function<void(JsonObject &)> callback)
-{
+void nikolaindustryrealtime::setOnMessageCallback(std::function<void(JsonObject &)> callback) {
   onMessageCallback = callback;
 }
 
-void nikolaindustryrealtime::sendTo(const String &targetId, std::function<void(JsonObject &)> payloadBuilder)
-{
+void nikolaindustryrealtime::setOnConnectionStatusChange(std::function<void(bool)> callback) {
+  onConnectionStatusChange = callback;
+}
+
+void nikolaindustryrealtime::sendTo(const String &targetId, std::function<void(JsonObject &)> payloadBuilder) {
   DynamicJsonDocument doc(512);
   doc["targetId"] = targetId;
   JsonObject payload = doc.createNestedObject("payload");
@@ -119,27 +127,30 @@ void nikolaindustryrealtime::sendTo(const String &targetId, std::function<void(J
   sendJson(doc.as<JsonObject>());
 }
 
-void nikolaindustryrealtime::connect()
-{
+void nikolaindustryrealtime::connect() {
   webSocket.beginSSL("nikolaindustry-realtime.onrender.com", 443, ("/?id=" + deviceId).c_str());
 
-  webSocket.onEvent([this](WStype_t type, uint8_t *payload, size_t length)
-                    {
-    if (type == WStype_TEXT) {
+  webSocket.onEvent([this](WStype_t type, uint8_t *payload, size_t length) {
+    if (type == WStype_CONNECTED) {
+      Serial.println("🟢 WebSocket connected");
+      if (onConnectionStatusChange) onConnectionStatusChange(true);
+    } else if (type == WStype_DISCONNECTED) {
+      Serial.println("🔴 WebSocket disconnected");
+      if (onConnectionStatusChange) onConnectionStatusChange(false);
+    } else if (type == WStype_TEXT) {
       DynamicJsonDocument doc(2048);
       if (!deserializeJson(doc, payload, length) && onMessageCallback) {
         JsonObject obj = doc.as<JsonObject>();
         onMessageCallback(obj);
       }
-    } });
+    }
+  });
 
   webSocket.setReconnectInterval(5000);
 }
 
-void nikolaindustryrealtime::startAPMode(const char *userSSID, const char *userPassword)
-{
-  if (apModeActive)
-    return; // ⚠️ Prevent calling twice
+void nikolaindustryrealtime::startAPMode(const char *userSSID, const char *userPassword) {
+  if (apModeActive) return;
 
   const char *defaultSSID = "NIKOLAINDUSTRY_Setup";
   const char *defaultPassword = "xVv9O9B4tV";
@@ -156,17 +167,15 @@ void nikolaindustryrealtime::startAPMode(const char *userSSID, const char *userP
 
   dnsServer.start(53, "*", WiFi.softAPIP());
   apModeActive = true;
-  apStartTime = millis(); // start the timeout timer
+  apStartTime = millis();
 
   Serial.println("📶 AP Mode started");
   Serial.println("🔑 SSID: " + String(apSSID));
   Serial.println("🌐 Access via: http://192.168.4.1");
 }
 
-void nikolaindustryrealtime::stopAPMode()
-{
-  if (apModeActive)
-  {
+void nikolaindustryrealtime::stopAPMode() {
+  if (apModeActive) {
     dnsServer.stop();
     WiFi.softAPdisconnect(true);
     apModeActive = false;
@@ -174,8 +183,7 @@ void nikolaindustryrealtime::stopAPMode()
   }
 }
 
-void nikolaindustryrealtime::setAPTimeout(unsigned long timeoutMillis)
-{
+void nikolaindustryrealtime::setAPTimeout(unsigned long timeoutMillis) {
   apTimeout = timeoutMillis;
   Serial.printf("⏱️ AP Mode timeout set to %lu ms\n", apTimeout);
 }
@@ -183,7 +191,7 @@ void nikolaindustryrealtime::setAPTimeout(unsigned long timeoutMillis)
 bool nikolaindustryrealtime::isAPModeActive() const {
   return apModeActive;
 }
-bool nikolaindustryrealtime::isNikolaindustryRealtimeConnected() const {
+
+bool nikolaindustryrealtime::isNikolaindustryRealtimeConnected()  {
   return webSocket.isConnected();
 }
-
