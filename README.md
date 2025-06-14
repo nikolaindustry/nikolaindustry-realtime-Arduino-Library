@@ -24,46 +24,67 @@ The `nikolaindustry-realtime` library enables ESP32 devices to communicate secur
 #include <WiFi.h>
 #include "nikolaindustry-realtime.h"
 
+const char* ssid = "SENSORFLOW";
+const char* pass = "12345678";
+const char* deviceid = "12345678";
+
 nikolaindustryrealtime realtime;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(2, OUTPUT);
 
-  WiFi.begin("SENSORFLOW", "12345678");
+
+  WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   Serial.println("\n✅ WiFi connected");
 
-  realtime.begin("device-123456");
+  realtime.begin(deviceid);
 
-  realtime.setOnMessageCallback([](JsonObject &msg) {
+  realtime.setOnMessageCallback([](JsonObject& msg) {
     if (!msg.containsKey("payload")) return;
 
     JsonObject payload = msg["payload"];
-    String senderId = msg["from"] | ""; // Optional: who sent the command
+    JsonArray commands = payload["commands"];
 
-    if (payload["command"] == "gpio") {
-      int pin = payload["pin"] | -1;
-      String state = payload["state"] | "";
+    for (JsonObject commandObj : commands) {
+      const char* command = commandObj["command"];
 
-      if (pin == 2 && (state == "ON" || state == "OFF")) {
-        digitalWrite(2, state == "ON" ? HIGH : LOW);
+      if (strcmp(command, "GPIO_MANAGMENT") == 0) {
+        JsonArray actions = commandObj["actions"];
 
-        // ✅ Send response back to sender
-        if (senderId != "") {
-          realtime.sendTo(senderId, [&](JsonObject &respPayload) {
-            respPayload["response"] = "GPIO_OK";
-            respPayload["pin"] = pin;
-            respPayload["state"] = state;
-            respPayload["status"] = "done";
-          });
+        for (JsonObject actionObj : actions) {
+          const char* action = actionObj["action"];
+          JsonObject params = actionObj["params"];
+
+          // Extract parameters
+          int gpio = atoi(params["gpio"] | "0");
+          String pinmodeStr = params["pinmode"] | "OUTPUT";
+          String statusStr = params["status"] | "LOW";
+
+          // Resolve pin mode
+          int mode = OUTPUT;
+          if (pinmodeStr == "INPUT") mode = INPUT;
+          else if (pinmodeStr == "INPUT_PULLUP") mode = INPUT_PULLUP;
+
+          // Resolve output state
+          int value = LOW;
+          if (statusStr == "HIGH") value = HIGH;
+
+          // Apply pin configuration
+          pinMode(gpio, mode);
+
+          if (strcmp(action, "ON") == 0 || strcmp(action, "OFF") == 0) {
+            digitalWrite(gpio, value);
+            Serial.printf("Pin %d set to %s with mode %s\n", gpio, statusStr.c_str(), pinmodeStr.c_str());
+          }
         }
       }
     }
   });
+
 
   realtime.setOnConnectionStatusChange([](bool connected) {
     Serial.println(connected ? "🟢 WS Connected" : "🔴 WS Disconnected");
