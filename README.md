@@ -52,7 +52,7 @@ void setup() {
     for (JsonObject commandObj : commands) {
       const char* command = commandObj["command"];
 
-      if (strcmp(command, "GPIO_MANAGMENT") == 0) {
+      if (strcmp(command, "GPIO_MANAGEMENT") == 0) {
         JsonArray actions = commandObj["actions"];
 
         for (JsonObject actionObj : actions) {
@@ -97,30 +97,133 @@ void loop() {
 
 ````
 
-### ✅ Example WebSocket JSON to Control GPIO2:
-### To turn it ON:
+### ✅ Example 1: Turn ON GPIO 12 as OUTPUT (e.g., turn on LED)
 ````
 {
-  "targetId": "device-123456",
+  "from": "controller-001",
   "payload": {
-    "command": "gpio",
-    "pin": 2,
-    "state": "ON"
+    "commands": [
+      {
+        "command": "GPIO_MANAGEMENT",
+        "actions": [
+          {
+            "action": "ON",
+            "params": {
+              "gpio": "12",
+              "pinmode": "OUTPUT",
+              "status": "HIGH"
+            }
+          }
+        ]
+      }
+    ]
   }
 }
 ````
-### To turn it OFF:
+### ✅ Example 2: Turn OFF GPIO 14 configured as OUTPUT
+````
+{
+  "from": "controller-002",
+  "payload": {
+    "commands": [
+      {
+        "command": "GPIO_MANAGEMENT",
+        "actions": [
+          {
+            "action": "OFF",
+            "params": {
+              "gpio": "14",
+              "pinmode": "OUTPUT",
+              "status": "LOW"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+````
+### ✅ Example 3: Configure GPIO 25 as INPUT_PULLUP (no write)
+````
+{
+  "from": "controller-003",
+  "payload": {
+    "commands": [
+      {
+        "command": "GPIO_MANAGEMENT",
+        "actions": [
+          {
+            "action": "ON",
+            "params": {
+              "gpio": "25",
+              "pinmode": "INPUT_PULLUP",
+              "status": "LOW"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+````
+⚠️ Although digitalWrite() still applies to INPUT_PULLUP, usually you don’t need to write in this mode — it enables an internal pull-up resistor.
 
+### ✅ Example 4: Toggle multiple GPIOs at once
 ````
 {
-  "targetId": "device-123456",
+  "from": "controller-004",
   "payload": {
-    "command": "gpio",
-    "pin": 2,
-    "state": "OFF"
+    "commands": [
+      {
+        "command": "GPIO_MANAGEMENT",
+        "actions": [
+          {
+            "action": "ON",
+            "params": {
+              "gpio": "5",
+              "pinmode": "OUTPUT",
+              "status": "HIGH"
+            }
+          },
+          {
+            "action": "OFF",
+            "params": {
+              "gpio": "18",
+              "pinmode": "OUTPUT",
+              "status": "LOW"
+            }
+          }
+        ]
+      }
+    ]
   }
 }
 ````
+### ✅ Example 5: Configure GPIO 4 as INPUT, no output
+````
+{
+  "from": "controller-005",
+  "payload": {
+    "commands": [
+      {
+        "command": "GPIO_MANAGEMENT",
+        "actions": [
+          {
+            "action": "ON",
+            "params": {
+              "gpio": "4",
+              "pinmode": "INPUT",
+              "status": "LOW"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+````
+This configures the pin, but the status has no real effect since it's an input. Still accepted for uniformity.
+
 
 ---
 
@@ -221,3 +324,8 @@ Returns `true` if the nikolaindustry-realtime is currently connected.
 * If `setAPTimeout()` is used, it will exit AP mode after the timeout and retry Wi-Fi.
 
 ---
+
+
+
+
+
