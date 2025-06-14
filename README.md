@@ -100,7 +100,7 @@ void loop() {
 ### ✅ Example 1: Turn ON GPIO 12 as OUTPUT (e.g., turn on LED)
 ````
 {
-  "from": "controller-001",
+  "targetId": "device-123",
   "payload": {
     "commands": [
       {
@@ -123,7 +123,7 @@ void loop() {
 ### ✅ Example 2: Turn OFF GPIO 14 configured as OUTPUT
 ````
 {
-  "from": "controller-002",
+  "targetId": "device-123",
   "payload": {
     "commands": [
       {
@@ -146,7 +146,7 @@ void loop() {
 ### ✅ Example 3: Configure GPIO 25 as INPUT_PULLUP (no write)
 ````
 {
-  "from": "controller-003",
+  "targetId": "device-123",
   "payload": {
     "commands": [
       {
@@ -171,7 +171,7 @@ void loop() {
 ### ✅ Example 4: Toggle multiple GPIOs at once
 ````
 {
-  "from": "controller-004",
+  "targetId": "device-123",
   "payload": {
     "commands": [
       {
@@ -202,7 +202,7 @@ void loop() {
 ### ✅ Example 5: Configure GPIO 4 as INPUT, no output
 ````
 {
-  "from": "controller-005",
+  "targetId": "device-123",
   "payload": {
     "commands": [
       {
