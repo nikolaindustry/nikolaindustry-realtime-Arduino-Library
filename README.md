@@ -26,7 +26,7 @@ The `nikolaindustry-realtime` library enables ESP32 devices to communicate secur
 
 const char* ssid = "SENSORFLOW";
 const char* pass = "12345678";
-const char* deviceid = "12345678";
+const char* deviceid = "device-123";
 
 nikolaindustryrealtime realtime;
 
